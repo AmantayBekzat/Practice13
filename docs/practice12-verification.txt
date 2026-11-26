@@ -1,0 +1,137 @@
+================================================================================
+PRACTICE 12 — VERIFICATION RESULTS
+Actual command outputs (final, after browser-review fixes), 2026-11-26
+================================================================================
+
+BASELINE (prior turn, recorded):
+  npx vitest run: 17 passed, 0 failed
+  npm run build: OK
+  npm run typecheck: OK
+  npm run lint: OK
+
+================================================================================
+COMMAND: npx vitest run  (final)
+EXIT CODE: 0
+================================================================================
+ RUN  v2.1.9 /home/project
+
+ ✓ src/lib/practice12.test.ts (18 tests) 5ms
+ ✓ src/lib/validation.test.ts (17 tests) 5ms
+
+ Test Files  2 passed (2)
+      Tests  35 passed (35)
+   Start at  10:45:40
+   Duration  487ms (transform 55ms, setup 0ms, collect 66ms, tests 10ms, environment 0ms, prepare 181ms)
+
+Test totals: 35 passed, 0 failed.
+  - Inherited validation tests: 17 passed, 0 failed (preserved, unchanged)
+  - New Practice 12 tests:     18 passed, 0 failed
+Compared with 17-test baseline: +18 new tests, 0 regressions.
+
+================================================================================
+COMMAND: npm run build  (final)
+EXIT CODE: 0
+================================================================================
+> vite-react-typescript-starter@0.0.0 build
+> vite build
+
+vite v5.4.8 building for production...
+transforming...
+Browserslist: caniuse-lite is outdated. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+✓ 1575 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.71 kB │ gzip:  0.38 kB
+dist/assets/index-CmJEi6Px.css   15.76 kB │ gzip:  3.80 kB
+dist/assets/index-ecl1GFjZ.js   169.48 kB │ gzip: 52.72 kB
+✓ built in 1.87s
+
+(The Browserslist caniuse-lite notice is informational, not an error.)
+
+================================================================================
+COMMAND: npm run typecheck  (final)
+EXIT CODE: 0
+================================================================================
+> vite-react-typescript-starter@0.0.0 typecheck
+> tsc --noEmit -p tsconfig.app.json
+
+No type errors.
+
+================================================================================
+COMMAND: npm run lint  (final)
+EXIT CODE: 0
+================================================================================
+> vite-react-typescript-starter@0.0.0 lint
+> eslint .
+
+No lint errors.
+
+================================================================================
+BROWSER-REVIEW FIXES APPLIED THIS TURN (Practice12Panel.tsx only)
+================================================================================
+1. Horizontal overflow at 390px viewport (scrollWidth 585 > clientWidth 329):
+   - Wrapped the shared-test <table> in a div.overflow-x-auto.min-w-0 container.
+   - Table uses min-w-[480px] w-full so it scrolls horizontally inside the
+     container instead of forcing the document to overflow.
+   - Added min-w-0 to the panel header text block, grid input cells, and the
+     shared-results wrapper so flex/grid children can shrink and wrap.
+
+2. Validation-error styling for app-level rejection codes:
+   - Results with reasonCode INVALID_INPUT, INVALID_DURATION, INVALID_WINDOW,
+     or PAST_START now show "Validation error" with amber styling and the
+     AlertCircle icon, instead of "Unavailable".
+   - reasonCode is always displayed (including validation errors).
+   - Result banner has role="status" aria-live="polite".
+   - Removed the old kind="ok"/"validation-error" DisplayState union; the panel
+     now stores a plain Practice12Output, since every output carries a reasonCode.
+
+3. Label association:
+   - Start time <label> uses htmlFor="practice12-start" with matching input id.
+   - Duration <label> uses htmlFor="practice12-duration" with matching input id.
+
+4. Blank duration handling:
+   - handleRunCheck converts a blank duration string to NaN before calling
+     checkCommonAvailability, so it becomes INVALID_INPUT (not Number('')=0).
+   - The comparison module's isInteger guard already rejects NaN; no change to
+     practice12.ts was required.
+
+5. Implementation-facing wording removed:
+   - The info box no longer mentions the inherited main current-time control or
+     its 08:00 default. It now states only the fixed 09:00 experiment clock and
+     the fictional Newton 101 schedule.
+
+No production rule logic, fixtures, dependencies, or existing tests were
+modified. practice12.ts was not changed this turn.
+
+================================================================================
+CHANGED / NEW FILE SUMMARY (cumulative)
+================================================================================
+Modified files:
+  src/lib/types.ts           - ReasonCode type union + optional reasonCode on CheckResult.
+  src/lib/validation.ts      - reasonCode attached to every existing return (8).
+  src/App.tsx                - Imports and renders Practice12Panel below main UI.
+  src/components/Practice12Panel.tsx - Collapsible panel (browser-review fixes this turn).
+
+New files:
+  src/lib/practice12.ts      - Comparison module + shared test runner.
+  src/lib/practice12.test.ts - 18 focused Vitest tests.
+  docs/practice12-contract.txt  - Contract, ACs, scope, timings.
+  docs/practice12-verification.txt - This file.
+
+Unchanged files (confirmed):
+  src/lib/sampleData.ts, src/lib/validation.test.ts, RoomCard.tsx, Timeline.tsx,
+  ResultBanner.tsx, package.json, package-lock.json, config files.
+  No packages installed or upgraded.
+
+================================================================================
+LIMITATIONS
+================================================================================
+- Browser verification was NOT repeated by the assistant. The user independently
+  confirmed 8/8 shared tests pass in the real UI and reported the issues fixed
+  above; the user will repeat the browser review.
+- No browser/screenshot tool is available in this environment.
+- A separate Node-RED workflow is being prepared outside Bolt; not claimed complete.
+- No services connected, no messages sent, no sharing/publishing modified.
+================================================================================

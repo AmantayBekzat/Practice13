@@ -1,0 +1,162 @@
+================================================================================
+PRACTICE 12 — COMMON AVAILABILITY CHECK
+Contract & Acceptance Criteria Record
+================================================================================
+Date: 2026-11-26
+Project: Smart Campus Room Availability (copied/existing project, Practice 12)
+
+--------------------------------------------------------------------------------
+USER STORY
+--------------------------------------------------------------------------------
+As a campus planner, I want to check a single room (Newton 101) against a fixed
+demo clock and its original bookings, using a shared contract that a separate
+low-code workflow (Node-RED, prepared outside Bolt) can also implement, so that
+the availability decision produced by the Bolt app and the Node-RED workflow are
+directly comparable by reason code.
+
+--------------------------------------------------------------------------------
+SCOPE COMPARISON (inherited vs Practice 12)
+--------------------------------------------------------------------------------
+Inherited app scope:
+  - Five selectable rooms (r1..r5) with individual blocked/capacity metadata.
+  - Main current-time control defaults to 08:00 (480 min) and is user-editable.
+  - Interval inputs are start/end time selects (15-minute slots, 00:00-24:00).
+  - Uses checkAvailability with the selected room, interval, current time,
+    full room list and full booking list.
+
+Practice 12 panel scope:
+  - ONE room: r1 "Newton 101" (Science Block, capacity 40, not blocked).
+  - ORIGINAL bookings unchanged: b1 [540, 600) = 09:00-10:00 "Prof. Hines";
+    b2 [810, 900) = 13:30-15:00 "Prof. Larsson".
+  - Fixed supplied demo clock: 09:00 (540 min), shown explicitly in the panel.
+    This is distinct from the inherited main control default of 08:00.
+  - Inputs: start time (type=time), duration (whole minutes), room blocked
+    (checkbox, scenario-only — does not mutate the fixture room).
+  - Duration 0 and 121 must be enterable so app-level INVALID_DURATION feedback
+    is reachable from the UI.
+  - Changing any input clears the stale result.
+  - Output: Available / Unavailable / Validation error, a concise safe message,
+    and a reasonCode. No mock/AI availability decision.
+
+Clock distinction summary:
+  - Inherited main UI current-time control: default 08:00 (480), editable.
+  - Practice 12 panel fixed demo clock: 09:00 (540), not editable from panel.
+  These are intentionally different and both are preserved.
+
+--------------------------------------------------------------------------------
+SHARED CONTRACT
+--------------------------------------------------------------------------------
+Input:  { start: integer minutes from midnight,
+          duration: integer minutes,
+          blocked: boolean }
+Output: { available: boolean, reasonCode, message }
+
+Validation order (Practice 12 panel module):
+  1. types and integers          -> INVALID_INPUT
+  2. duration 1..120             -> INVALID_DURATION
+  3. within-day bounds            -> INVALID_WINDOW
+     (start >= 0, end <= 1440, start < end)
+  4. start > 540 (demo now)       -> PAST_START
+  5. blocked                      -> BLOCKED
+  6. overlap with original b1/b2  -> OVERLAP
+  7. otherwise                    -> AVAILABLE
+
+Reason codes and canonical messages:
+  INVALID_INPUT    Enter a valid start time, whole-minute duration and room status.
+  INVALID_DURATION Duration must be a whole number from 1 to 120 minutes.
+  INVALID_WINDOW   Choose an interval within the demo day (00:00 to 24:00).
+  PAST_START       Start time must be after the fixed demo time, 09:00.
+  BLOCKED          Newton 101 is blocked and cannot be booked.
+  OVERLAP          The requested interval overlaps an existing booking.
+  AVAILABLE        Newton 101 is available for this interval.
+
+--------------------------------------------------------------------------------
+ACCEPTANCE CRITERIA
+--------------------------------------------------------------------------------
+AC1 (future / invalid intervals):
+  Reject invalid input types, non-integers, missing fields, out-of-day bounds,
+  and starts not after the 09:00 demo clock. The app-level module enforces
+  types/integer/duration/window/past-start before delegating to the rule engine.
+
+AC2 (duration):
+  Reject durations longer than 120 minutes. Allow exactly 120 minutes when all
+  other checks pass. Duration 0 and 121 are enterable from the UI and both
+  produce INVALID_DURATION.
+
+AC3 (overlap):
+  Reject intervals overlapping b1 or b2 for r1. Allow intervals that only touch
+  at endpoints (e.g. start=600 touches b1's end 600). Bookings for other rooms
+  must not cause a conflict (the panel only checks r1).
+
+AC4 (blocked):
+  Reject when the scenario blocked flag is true. The flag is applied to a cloned
+  room object; the fixture room r1 is never mutated.
+
+AC5 (read-only / clear decision):
+  Do not mutate the supplied booking arrays, booking objects, room fixtures or
+  cloned room. Display a clear Available / Unavailable / Validation error with
+  message and reason code.
+
+AC6 (feedback):
+  Preserve clear feedback and a responsive interface on desktop and mobile. The
+  panel is collapsible, uses the inherited Tailwind style, and changing any
+  input clears the stale result. UI text is rendered with React's normal
+  escaping (no dangerouslySetInnerHTML).
+
+--------------------------------------------------------------------------------
+SHARED TEST CASES (typed list used by both UI and Vitest)
+--------------------------------------------------------------------------------
+T1  start=660,  dur=60,  blocked=false -> available=true,  AVAILABLE
+T2  start=570,  dur=60,  blocked=false -> available=false, OVERLAP
+T3  start=660,  dur=60,  blocked=true  -> available=false, BLOCKED
+T4  start=660,  dur=0,   blocked=false -> available=false, INVALID_DURATION
+T5  start=660,  dur=121, blocked=false -> available=false, INVALID_DURATION
+T6  start=510,  dur=30,  blocked=false -> available=false, PAST_START
+T7  start=600,  dur=30,  blocked=false -> available=true,  AVAILABLE (adjacency)
+T8  fixtures (rooms + bookings arrays/objects) unchanged after all checks + repeats
+
+Additional edge cases covered in Vitest:
+  - null input, empty object, wrong-type input -> INVALID_INPUT
+  - fractional duration -> INVALID_INPUT
+  - start equal to demo now (540) -> PAST_START
+  - 120-minute valid boundary -> AVAILABLE
+  - midnight boundary end=1440 -> AVAILABLE
+  - injection-like string duration -> INVALID_INPUT
+  - missing blocked field -> INVALID_INPUT
+  - shared test runner pass count == 8, fail count == 0
+
+--------------------------------------------------------------------------------
+IMPLEMENTATION NOTES
+--------------------------------------------------------------------------------
+- Reuses the existing checkAvailability rule engine from src/lib/validation.ts.
+- Small allowed change: added an OPTIONAL typed reasonCode field to CheckResult
+  (src/lib/types.ts) and attached a reasonCode at every existing return in
+  validation.ts. Original signature, branch order, decision and reason text are
+  preserved. Existing 17 tests are unchanged and still pass.
+- New module src/lib/practice12.ts validates the shared contract, clones r1 to
+  apply the scenario blocked flag, calls checkAvailability with original booking
+  data and currentTime=540, and maps reason codes to the canonical output. It
+  does NOT parse human-readable reason strings.
+- New component src/components/Practice12Panel.tsx renders the collapsible panel
+  below the inherited main UI and provides a "Run 8 shared tests" button that
+  shows expected vs observed with real pass/fail (never hardcoded PASS).
+- Fixture file src/lib/sampleData.ts is byte-identical (unchanged).
+- No new packages or dependencies. No backend, database, login, booking write,
+  or external service connection.
+
+--------------------------------------------------------------------------------
+TIMINGS
+--------------------------------------------------------------------------------
+Setup:        unmeasured (baseline already recorded in prior turn)
+Implementation: unmeasured
+Debug:        unmeasured (two fixes applied: corrected midnight-boundary test
+              input to respect the 120-min duration limit; removed unused import)
+Testing:      unmeasured
+
+Browser screenshots: NOT claimed. No browser/screenshot tool was used in this
+environment. AC6 desktop/mobile visual verification remains pending unless the
+UI is actually checked in a browser.
+
+A separate Node-RED workflow is being prepared outside Bolt; this document does
+not claim it is completed.
+================================================================================
